@@ -40,7 +40,7 @@ if "lanzador_ok" in st.session_state:
     y = st.session_state.y
 
     # Intentamos cargar la geometría completa de la parcela (mejor para afecciones)
-    base_url = "https://raw.githubusercontent.com/iberiaforestal/AFECCIONES_CARM/main/CATASTRO/"
+    base_url = "https://raw.githubusercontent.com/iberiaforestal/CATASTRO_JCCM/master/CATASTRO/"
     archivo = municipio_sel.upper().replace(" ", "_").replace("Á","A").replace("É","E").replace("Í","I")
 
     with tempfile.TemporaryDirectory() as tmpdir:
