@@ -164,22 +164,33 @@ else:
 # ===================== BOTÓN FINAL QUE REDIRIGE (FUNCIONA EN TODAS PARTES) =====================
 if x and y and poligono and parcela:
     st.markdown("---")
-    
-    # Guardamos todos los datos en session_state
-    st.session_state.comunidad = comunidad
-    st.session_state.provincia = provincia  # None si es Murcia
-    st.session_state.municipio = municipio_final
-    st.session_state.poligono = poligono
-    st.session_state.parcela = parcela
-    st.session_state.x = x
-    st.session_state.y = y
-    st.session_state.lanzador_ok = True  # ← ¡¡ESTO ES LA CLAVE!!
-
     col1, col2, col3 = st.columns([1, 1, 1])
     with col2:
         if comunidad == "Región de Murcia":
             if st.button("GENERAR INFORME → Región de Murcia", type="primary", use_container_width=True):
-                st.switch_page("pages/carm.py")   # ← ¡¡ASÍ SÍ FUNCIONA!!
-        else:
+                # ← ¡¡TODO EL GUARDADO AQUÍ DENTRO!!
+                st.session_state.update({
+                    "lanzador_ok": True,
+                    "comunidad": comunidad,
+                    "provincia": provincia,
+                    "municipio": municipio_final,
+                    "poligono": poligono,
+                    "parcela": parcela,
+                    "x": x,
+                    "y": y
+                })
+                st.switch_page("pages/carm.py")
+
+        else:  # Castilla-La Mancha
             if st.button("GENERAR INFORME → Castilla-La Mancha", type="primary", use_container_width=True):
-                st.switch_page("pages/jccm.py")   # ← nombre futuro de la app de CLM
+                st.session_state.update({
+                    "lanzador_ok": True,
+                    "comunidad": comunidad,
+                    "provincia": provincia,
+                    "municipio": municipio_final,
+                    "poligono": poligono,
+                    "parcela": parcela,
+                    "x": x,
+                    "y": y
+                })
+                st.switch_page("pages/jccm.py")
