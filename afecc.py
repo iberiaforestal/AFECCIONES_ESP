@@ -161,37 +161,51 @@ else:
         else:
             st.error("No se encontró ninguna parcela en esas coordenadas")
 
-# ===================== BOTÓN FINAL QUE REDIRIGE (SIEMPRE FUNCIONA) =====================
+# ===================== BOTÓN FINAL QUE REDIRIGE (VERSIÓN DEFINITIVA) =====================
 st.markdown("---")
 
-# Guardamos los datos en session_state SÓLO si ya están calculados
+# Solo mostramos el botón cuando realmente tenemos parcela localizada
 if x and y and poligono and parcela:
-    # Guardamos aquí para que siempre existan aunque el botón haga rerun
-    st.session_state.update({
-        "lanzador_ok": True,
-        "comunidad": comunidad,
-        "provincia": provincia,
-        "municipio": municipio_final,
-        "poligono": poligono,
-        "parcela": parcela,
-        "x": x,
-        "y": y
-    })
-
     col1, col2, col3 = st.columns([1, 1, 1])
     with col2:
         if comunidad == "Región de Murcia":
             if st.button("GENERAR INFORME → Región de Murcia", 
                          type="primary", use_container_width=True, key="btn_murcia"):
-                st.switch_page("pages/carm.py")
+                
+                # Guardamos todo EN EL MOMENTO DEL CLIC (así siempre está actualizado)
+                st.session_state.update({
+                    "lanzador_ok": True,
+                    "comunidad": comunidad,
+                    "provincia": provincia,
+                    "municipio": municipio_final,
+                    "poligono": poligono,
+                    "parcela": parcela,
+                    "x": x,
+                    "y": y
+                })
+                
+                # Forzamos un rerun limpio y luego saltamos
+                st.rerun()
                 
         else:  # Castilla-La Mancha
             if st.button("GENERAR INFORME → Castilla-La Mancha", 
                          type="primary", use_container_width=True, key="btn_jccm"):
-                st.switch_page("pages/jccm.py")
+                
+                st.session_state.update({
+                    "lanzador_ok": True,
+                    "comunidad": comunidad,
+                    "provincia": provincia,
+                    "municipio": municipio_final,
+                    "poligono": poligono,
+                    "parcela": parcela,
+                    "x": x,
+                    "y": y
+                })
+                
+                st.rerun()
 
-# Si el botón ya fue pulsado en una ejecución anterior, redirigimos directamente
-elif st.session_state.get("lanzador_ok"):
+# === REDIRECCIÓN REAL: se ejecuta en el segundo rerun (cuando los datos ya están guardados) ===
+if st.session_state.get("lanzador_ok") and st.session_state.get("comunidad"):
     if st.session_state.comunidad == "Región de Murcia":
         st.switch_page("pages/carm.py")
     else:
