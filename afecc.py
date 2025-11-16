@@ -177,7 +177,7 @@ else:
                                 break
                 except Exception as e:
                     st.error(f"Error en búsqueda por coordenadas en {provincia}: {str(e)}")
-if encontrado:
+    if encontrado:
             st.success(f"¡Parcela encontrada!\n**{municipio_final}** → Pol {poligono} → Parcela {parcela}")
             # ← ¡¡AQUÍ ESTABA EL FALLO!! → asignamos las variables para que el botón aparezca
             x = punto.x
