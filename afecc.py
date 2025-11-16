@@ -177,14 +177,20 @@ else:
                                 break
                 except Exception as e:
                     st.error(f"Error en búsqueda por coordenadas en {provincia}: {str(e)}")
-        if encontrado:
+if encontrado:
             st.success(f"¡Parcela encontrada!\n**{municipio_final}** → Pol {poligono} → Parcela {parcela}")
-            # Asignar variables para el botón
+            # ← ¡¡AQUÍ ESTABA EL FALLO!! → asignamos las variables para que el botón aparezca
             x = punto.x
             y = punto.y
-            st.rerun()  # Refresca para mostrar el botón
+            # Forzamos que el botón aparezca
+            st.session_state.found_x = x
+            st.session_state.found_y = y
+            st.session_state.found_poligono = poligono
+            st.session_state.found_parcela = parcela
+            st.session_state.found_municipio = municipio_final
+            st.rerun()  # Para que el botón aparezca inmediatamente
         else:
-            st.error("No se encontró ninguna parcela en esas coordenadas. Verifica el rango de coordenadas para CLM (UTM 30N).")
+            st.error("No se encontró ninguna parcela en esas coordenadas")
 
 # ===================== BOTÓN FINAL QUE REDIRIGE =====================
 st.markdown("---")
