@@ -28,109 +28,45 @@ adapter = HTTPAdapter(max_retries=retry)
 session.mount('http://', adapter)
 session.mount('https://', adapter)
 
-# ==============================================================
-# DETECCIÓN DEL LANZADOR – AÑADE ESTO AL PRINCIPIO
-# ==============================================================
-if "lanzador_ok" in st.session_state:
-    # VIENE DEL LANZADOR → CARGAMOS LOS DATOS AUTOMÁTICAMENTE
-    municipio_sel = st.session_state.municipio
-    masa_sel = st.session_state.poligono
-    parcela_sel = st.session_state.parcela
-    x = st.session_state.x
-    y = st.session_state.y
+# =============== SEGURIDAD LANZADOR ===============
+if not st.session_state.get("lanzador_ok"):
+    st.switch_page("afecc.py")
 
-    # Intentamos cargar la geometría completa de la parcela (mejor para afecciones)
-    base_url = "https://raw.githubusercontent.com/iberiaforestal/CATASTRO_JCCM/master/CATASTRO/"
-    archivo = municipio_sel.upper().replace(" ", "_").replace("Á","A").replace("É","E").replace("Í","I")
-
-    with tempfile.TemporaryDirectory() as tmpdir:
-        exts = [".shp", ".shx", ".dbf", ".prj", ".cpg"]
-        paths = {}
-        ok = True
-        for ext in exts:
-            try:
-                r = requests.get(f"{base_url}{archivo}{ext}", timeout=30)
-                r.raise_for_status()
-                p = os.path.join(tmpdir, f"{archivo}{ext}")
-                with open(p, "wb") as f:
-                    f.write(r.content)
-                paths[ext] = p
-            except:
-                ok = False
-                break
-        if ok:
-            gdf = gpd.read_file(paths[".shp"]).to_crs(epsg=25830)
-            sel = gdf[(gdf["MASA"] == masa_sel) & (gdf["PARCELA"] == parcela_sel)]
-            if not sel.empty:
-                parcela = sel
-                query_geom_lanzador = sel.geometry.iloc[0]
-            else:
-                parcela = None
-                query_geom_lanzador = Point(x, y)
-        else:
-            parcela = None
-            query_geom_lanzador = Point(x, y)
-
-    st.info("Datos cargados desde el lanzador principal.")
-else:
-    # NO VIENE DEL LANZADOR → LO MANDAMOS AL PRINCIPIO
-    st.warning("Acceso directo no permitido. Volviendo al selector principal...")
-    st.switch_page("afecc.py")  # ← nombre de tu lanzador
-    st.stop()
-
-# ==============================================================
-# CARGAR GEOMETRÍA DE LA PARCELA DESDE EL NUEVO REPO DE CLM
-# ==============================================================
-base_url_clm = "https://raw.githubusercontent.com/iberiaforestal/CATASTRO_JCCM/master/CATASTRO/"
-
-# Ya tenemos todo desde el lanzador → NO hay que buscar nada
-municipio_sel = st.session_state.municipio
-masa_sel = st.session_state.poligono
-parcela_sel = st.session_state.parcela
+# =============== DATOS DEL LANZADOR ===============
+provincia = st.session_state.provincia
+municipio = st.session_state.municipio
+masa = st.session_state.poligono
+parcela = st.session_state.parcela
 x = st.session_state.x
 y = st.session_state.y
-provincia = st.session_state.provincia
 
-# Construimos la ruta: PROVINCIA/MUNICIPIO/PARCELA
-ruta_parcela = f"{provincia.upper()}/{municipio_sel.upper()}/PARCELA"
+# =============== CARGAR GEOMETRÍA PARCELA CLM ===============
+base_url = "https://raw.githubusercontent.com/iberiaforestal/CATASTRO_JCCM/master/CATASTRO/"
+ruta = f"{provincia.upper()}/{municipio.upper()}/PARCELA"
 
-with tempfile.TemporaryDirectory() as tmpdir:
-    exts = [".shp", ".shx", ".dbf", ".prj", ".cpg"]
+with tempfile.TemporaryDirectory() as tmp:
     paths = {}
-    cargado = True
-    for ext in exts:
-        url = base_url_clm + ruta_parcela + ext
+    ok = True
+    for ext in [".shp", ".shx", ".dbf", ".prj", ".cpg"]:
         try:
-            r = requests.get(url, timeout=60)
+            r = requests.get(base_url + ruta + ext, timeout=60)
             r.raise_for_status()
-            path = os.path.join(tmpdir, "PARCELA" + ext)
+            path = os.path.join(tmp, "PARCELA" + ext)
             with open(path, "wb") as f:
                 f.write(r.content)
             paths[ext] = path
         except:
-            st.warning(f"No se encontró {ext} → se usará solo el punto central")
-            cargado = False
+            ok = False
             break
 
-    if cargado:
-        try:
-            gdf_parcela = gpd.read_file(paths[".shp"]).to_crs(epsg=25830)
-            seleccion = gdf_parcela[
-                (gdf_parcela["MASA"] == masa_sel) & 
-                (gdf_parcela["PARCELA"] == parcela_sel)
-            ]
-            if not seleccion.empty:
-                query_geom = seleccion.geometry.iloc[0]
-                st.success("Geometría completa de la parcela cargada")
-            else:
-                query_geom = Point(x, y)
-                st.info("Parcela no encontrada en shapefile → se usa punto central")
-        except Exception as e:
-            st.warning(f"Error leyendo shapefile: {e}")
-            query_geom = Point(x, y)
+    if ok:
+        gdf = gpd.read_file(paths[".shp"]).to_crs(epsg=25830)
+        sel = gdf[(gdf["MASA"] == masa) & (gdf["PARCELA"] == parcela)]
+        query_geom = sel.geometry.iloc[0] if not sel.empty else Point(x, y)
+        st.success("Geometría completa de la parcela cargada")
     else:
         query_geom = Point(x, y)
-        st.info("Shapefile incompleto → se usa punto central para afecciones")
+        st.info("Usando punto central (falta algún archivo)")
 
 # Función para transformar coordenadas de ETRS89 a WGS84
 def transformar_coordenadas(x, y):
@@ -1567,10 +1503,8 @@ st.image(
 )
 st.title("Informe básico de Afecciones al medio – Región de Murcia")
 
-st.success("Parcela cargada correctamente.")
-st.write(f"Municipio: {municipio_sel}")
-st.write(f"Polígono: {masa_sel}")
-st.write(f"Parcela: {parcela_sel}")
+st.write(f"**{provincia} → {municipio} → Pol {masa} → Parc {parcela}**")
+st.write(f"Coordenadas: X = {x:,.0f} | Y = {y:,.0f}".replace(",", "."))
 
 with st.form("formulario"):
     nombre = st.text_input("Nombre")
