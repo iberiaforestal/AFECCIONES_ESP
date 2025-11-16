@@ -190,9 +190,17 @@ else:
 st.markdown("---")
 
 # Detectamos si tenemos datos (ya sea por selección manual o por coordenadas)
-datos_listos = (x and y and poligono and parcela)
+datos_listos = (x and y and poligono and parcela) or st.session_state.get("found_x")
 
 if datos_listos:
+    # Si vinieron por coordenadas, usamos esos datos
+    if st.session_state.get("found_x"):
+        x = st.session_state.found_x
+        y = st.session_state.found_y
+        poligono = st.session_state.found_poligono
+        parcela = st.session_state.found_parcela
+        municipio_final = st.session_state.found_municipio
+
     col1, col2, col3 = st.columns([1,1,1])
     with col2:
         if comunidad == "Región de Murcia":
@@ -223,6 +231,4 @@ if datos_listos:
                 })
                 st.session_state._redirect = "jccm"
                 st.rerun()
-else:
-    st.info("Introduce coordenadas válidas o selecciona una parcela para generar el informe.")
 
