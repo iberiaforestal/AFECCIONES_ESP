@@ -161,24 +161,27 @@ else:
         else:
             st.error("No se encontró ninguna parcela en esas coordenadas")
 
-# ===================== BOTÓN FINAL QUE REDIRIGE =====================
+# ===================== BOTÓN FINAL QUE REDIRIGE (VERSIÓN COMPATIBLE CON TODAS LAS VERSIONES) =====================
 if x and y and poligono and parcela:
     st.markdown("---")
-    if st.button("GENERAR INFORME OFICIAL →", type="primary", use_container_width=True):
-        
-        # Guardamos todo en session_state
-        st.session_state.comunidad = comunidad
-        st.session_state.provincia = provincia
-        st.session_state.municipio = municipio_final
-        st.session_state.poligono = poligono
-        st.session_state.parcela = parcela
-        st.session_state.x = x
-        st.session_state.y = y
+    
+    # Guardamos todos los datos en session_state
+    st.session_state.comunidad = comunidad
+    st.session_state.provincia = provincia  # puede ser None si es Murcia
+    st.session_state.municipio = municipio_final
+    st.session_state.poligono = poligono
+    st.session_state.parcela = parcela
+    st.session_state.x = x
+    st.session_state.y = y
+    st.session_state.lanzador_ok = True  # bandera para que las otras apps sepan que vienen del lanzador
 
-        # Redirigimos a la app correspondiente
+    col1, col2, col3 = st.columns([1,1,1])
+    with col2:
         if comunidad == "Región de Murcia":
-            st.switch_page("pages/CARM_app.py")
+            if st.button("IR A INFORME → Región de Murcia", type="primary", use_container_width=True):
+                st.query_params["page"] = "carm"   # método universal
+                st.rerun()
         else:
-            st.switch_page("pages/JCCM_app.py")
-
-st.caption("Lanzador común v3 – 16 noviembre 2025")
+            if st.button("IR A INFORME → Castilla-La Mancha", type="primary", use_container_width=True):
+                st.query_params["page"] = "jccm"
+                st.rerun()
