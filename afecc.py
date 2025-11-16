@@ -188,7 +188,7 @@ if encontrado:
             st.session_state.found_poligono = poligono
             st.session_state.found_parcela = parcela
             st.session_state.found_municipio = municipio_final
-            st.rerun()  # Para que el botón aparezca inmediatamente
+            st.rerun()  # Para que el botón aparezca inmediatamente 
         else:
             st.error("No se encontró ninguna parcela en esas coordenadas")
 
