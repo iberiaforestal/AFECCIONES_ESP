@@ -165,45 +165,65 @@ else:
 
         if encontrado:
             st.success(f"¡Parcela encontrada!\n**{municipio_final}** → Pol {poligono} → Parcela {parcela}")
+            # ← ¡¡AQUÍ ESTABA EL FALLO!! → asignamos las variables para que el botón aparezca
+            x = punto.x
+            y = punto.y
+            # Forzamos que el botón aparezca
+            st.session_state.found_x = x
+            st.session_state.found_y = y
+            st.session_state.found_poligono = poligono
+            st.session_state.found_parcela = parcela
+            st.session_state.found_municipio = municipio_final
+            st.rerun()  # Para que el botón aparezca inmediatamente
         else:
             st.error("No se encontró ninguna parcela en esas coordenadas")
 
 # ===================== BOTÓN FINAL QUE REDIRIGE (100% GARANTIZADO) =====================
 st.markdown("---")
 
-# Solo mostramos el botón cuando tenemos parcela
-if x and y and poligono and parcela:
+# ===================== BOTÓN FINAL QUE REDIRIGE =====================
+st.markdown("---")
+
+# Detectamos si tenemos datos (ya sea por selección manual o por coordenadas)
+datos_listos = (x and y and poligono and parcela) or st.session_state.get("found_x")
+
+if datos_listos:
+    # Si vinieron por coordenadas, usamos esos datos
+    if st.session_state.get("found_x"):
+        x = st.session_state.found_x
+        y = st.session_state.found_y
+        poligono = st.session_state.found_poligono
+        parcela = st.session_state.found_parcela
+        municipio_final = st.session_state.found_municipio
+
     col1, col2, col3 = st.columns([1,1,1])
     with col2:
         if comunidad == "Región de Murcia":
-            if st.button("GENERAR INFORME → Región de Murcia",
-                         type="primary", use_container_width=True, key="go_murcia"):
-                # Guardamos todo
-                st.session_state.lanzador_ok = True
-                st.session_state.comunidad = comunidad
-                st.session_state.provincia = provincia
-                st.session_state.municipio = municipio_final
-                st.session_state.poligono = poligono
-                st.session_state.parcela = parcela
-                st.session_state.x = x
-                st.session_state.y = y
-                
-                # La magia: cambiamos una variable de control y rerun
+            if st.button("GENERAR INFORME → Región de Murcia", type="primary", use_container_width=True, key="go_murcia"):
+                st.session_state.update({
+                    "lanzador_ok": True,
+                    "comunidad": comunidad,
+                    "provincia": provincia,
+                    "municipio": municipio_final,
+                    "poligono": poligono,
+                    "parcela": parcela,
+                    "x": x,
+                    "y": y
+                })
                 st.session_state._redirect = "carm"
                 st.rerun()
-                
-        else:  # Castilla-La Mancha
-            if st.button("GENERAR INFORME → Castilla-La Mancha",
-                         type="primary", use_container_width=True, key="go_jccm"):
-                st.session_state.lanzador_ok = True
-                st.session_state.comunidad = comunidad
-                st.session_state.provincia = provincia
-                st.session_state.municipio = municipio_final
-                st.session_state.poligono = poligono
-                st.session_state.parcela = parcela
-                st.session_state.x = x
-                st.session_state.y = y
-                
+        else:
+            if st.button("GENERAR INFORME → Castilla-La Mancha", type="primary", use_container_width=True, key="go_jccm"):
+                st.session_state.update({
+                    "lanzador_ok": True,
+                    "comunidad": comunidad,
+                    "provincia": provincia,
+                    "municipio": municipio_final,
+                    "poligono": poligono,
+                    "parcela": parcela,
+                    "x": x,
+                    "y": y
+                })
                 st.session_state._redirect = "jccm"
                 st.rerun()
 
