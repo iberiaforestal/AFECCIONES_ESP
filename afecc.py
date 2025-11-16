@@ -4,9 +4,9 @@ import geopandas as gpd
 import tempfile
 import os
 from shapely.geometry import Point
+from pyproj import Transformer
 
-# === REDIRECCIÓN INMEDIATA AL PRINCIPIO DEL SCRIPT (siempre se ejecuta primero) ===
-# Pon esto **MUY ARRIBA** en tu afecc.py, justo después de import streamlit as st
+# === REDIRECCIÓN INMEDIATA AL PRINCIPIO DEL SCRIPT ===
 if st.session_state.get("_redirect") == "carm":
     st.switch_page("pages/carm.py")
 elif st.session_state.get("_redirect") == "jccm":
@@ -21,28 +21,36 @@ st.markdown("---")
 BASE_URL_CLM = "https://raw.githubusercontent.com/iberiaforestal/CATASTRO_JCCM/master/CATASTRO/"
 PROVINCIAS = ["ALBACETE", "CIUDAD REAL", "CUENCA", "GUADALAJARA", "TOLEDO"]
 
-# ===================== FUNCIÓN CARGAR SHAPEFILE CLM =====================
+# ===================== FUNCIÓN CARGAR SHAPEFILE CLM (MEJORADA CON LOGS) =====================
 @st.cache_data(ttl=3600)
 def cargar_parcelario_clm(provincia: str, municipio: str):
+    base = f"{BASE_URL_CLM}{provincia}/{municipio.upper()}/PARCELA"
+    st.info(f"Intentando cargar parcelario de {municipio.upper()} ({provincia})...")  # Log temporal
+
     with tempfile.TemporaryDirectory() as tmpdir:
         exts = [".shp", ".shx", ".dbf", ".prj", ".cpg"]
         paths = {}
-        base = f"{BASE_URL_CLM}{provincia}/{municipio.upper()}/PARCELA"
         for ext in exts:
             url = base + ext
             try:
-                r = requests.get(url, timeout=30)
+                r = requests.get(url, timeout=60)  # Timeout más largo
+                if r.status_code == 404:
+                    st.error(f"Archivo no encontrado: {url} (404 - Verifica si el shapefile está subido)")
+                    return None
                 r.raise_for_status()
                 path = os.path.join(tmpdir, "PARCELA" + ext)
                 with open(path, "wb") as f:
                     f.write(r.content)
                 paths[ext] = path
-            except:
+            except requests.exceptions.RequestException as e:
+                st.error(f"Error descargando {url}: {str(e)}")
                 return None
         try:
             gdf = gpd.read_file(paths[".shp"]).to_crs(epsg=25830)
+            st.success(f"Parcelario cargado correctamente ({len(gdf)} parcelas)")
             return gdf
-        except:
+        except Exception as e:
+            st.error(f"Error leyendo shapefile: {str(e)}")
             return None
 
 # ===================== INICIO =====================
@@ -80,17 +88,19 @@ if modo == "Por polígono y parcela":
             try:
                 items = requests.get(api_url, timeout=15).json()
                 municipios = sorted([item["name"] for item in items if item["type"] == "dir"], key=str.lower)
+                if not municipios:
+                    st.error(f"No se encontraron municipios en {provincia}. El directorio está vacío. Verifica el repo GitHub.")
+                    st.stop()
                 municipio = st.selectbox("Municipio", municipios)
                 municipio_final = municipio.upper()
-            except:
-                st.error("Error al cargar municipios. Revisa tu conexión.")
+            except Exception as e:
+                st.error(f"Error al cargar municipios de {provincia}: {str(e)}")
                 st.stop()
 
     # Cargar parcelario y seleccionar polígono/parcela
     if municipio:
         with st.spinner("Cargando parcelario (puede tardar unos segundos)..."):
             if comunidad == "Región de Murcia":
-                # En Murcia el archivo se llama como el municipio
                 url_shp = f"https://raw.githubusercontent.com/iberiaforestal/AFECCIONES_CARM/main/CATASTRO/{municipio_final}.shp"
                 try:
                     gdf = gpd.read_file(url_shp).to_crs(epsg=25830)
@@ -99,11 +109,10 @@ if modo == "Por polígono y parcela":
                     st.stop()
             else:
                 gdf = cargar_parcelario_clm(provincia, municipio_final)
-
         if gdf is not None and len(gdf) > 0:
             poligono = st.selectbox("Polígono", sorted(gdf["MASA"].unique()))
             parcela = st.selectbox("Parcela", sorted(gdf[gdf["MASA"] == poligono]["PARCELA"].unique()))
-            
+           
             seleccion = gdf[(gdf["MASA"] == poligono) & (gdf["PARCELA"] == parcela)]
             if not seleccion.empty:
                 centroide = seleccion.geometry.centroid.iloc[0]
@@ -111,7 +120,7 @@ if modo == "Por polígono y parcela":
                 gdf_parcela = seleccion
                 st.success(f"Parcela seleccionada → X: {x:,} | Y: {y:,}".replace(",", "."))
         else:
-            st.error("No se pudo cargar el parcelario")
+            st.error("No se pudo cargar el parcelario. Verifica que el shapefile PARCELA.shp exista en el repo.")
 
 # ===================== BÚSQUEDA POR COORDENADAS =====================
 else:
@@ -120,11 +129,9 @@ else:
         x = st.number_input("X (ETRS89 UTM 30N)", value=660000.0, format="%.2f")
     with col2:
         y = st.number_input("Y (ETRS89 UTM 30N)", value=4190000.0, format="%.2f")
-
     if st.button("Buscar parcela en estas coordenadas", type="primary"):
         punto = Point(x, y)
         encontrado = False
-
         if comunidad == "Región de Murcia":
             with st.spinner("Buscando en toda la Región de Murcia..."):
                 for mun in ["ABANILLA","ABARAN","AGUILAS","ALBUDEITE","ALCANTARILLA","ALEDO","ALGUAZAS","ALHAMA_DE_MURCIA",
@@ -146,53 +153,40 @@ else:
                             break
                     except:
                         continue
-
-        else:  # Castilla-La Mancha (solo en la provincia seleccionada)
+        else:  # Castilla-La Mancha
             with st.spinner(f"Buscando en la provincia de {provincia}..."):
                 api_url = f"https://api.github.com/repos/iberiaforestal/CATASTRO_JCCM/contents/CATASTRO/{provincia}"
-                items = requests.get(api_url).json()
-                for item in items:
-                    if item["type"] == "dir":
-                        mun = item["name"]
-                        gdf_temp = cargar_parcelario_clm(provincia, mun)
-                        if gdf_temp is not None and gdf_temp.contains(punto).any():
-                            fila = gdf_temp[gdf_temp.contains(punto)].iloc[0]
-                            municipio_final = mun
-                            poligono = fila["MASA"]
-                            parcela = fila["PARCELA"]
-                            encontrado = True
-                            break
-
+                try:
+                    items = requests.get(api_url, timeout=15).json()
+                    for item in items:
+                        if item["type"] == "dir":
+                            mun = item["name"]
+                            gdf_temp = cargar_parcelario_clm(provincia, mun)
+                            if gdf_temp is not None and gdf_temp.contains(punto).any():
+                                fila = gdf_temp[gdf_temp.contains(punto)].iloc[0]
+                                municipio_final = mun
+                                poligono = fila["MASA"]
+                                parcela = fila["PARCELA"]
+                                encontrado = True
+                                break
+                except Exception as e:
+                    st.error(f"Error en búsqueda por coordenadas en {provincia}: {str(e)}")
         if encontrado:
             st.success(f"¡Parcela encontrada!\n**{municipio_final}** → Pol {poligono} → Parcela {parcela}")
-            # ← ¡¡AQUÍ ESTABA EL FALLO!! → asignamos las variables para que el botón aparezca
+            # Asignar variables para el botón
             x = punto.x
             y = punto.y
-            # Forzamos que el botón aparezca
-            st.session_state.found_x = x
-            st.session_state.found_y = y
-            st.session_state.found_poligono = poligono
-            st.session_state.found_parcela = parcela
-            st.session_state.found_municipio = municipio_final
-            st.rerun()  # Para que el botón aparezca inmediatamente
+            st.rerun()  # Refresca para mostrar el botón
         else:
-            st.error("No se encontró ninguna parcela en esas coordenadas")
+            st.error("No se encontró ninguna parcela en esas coordenadas. Verifica el rango de coordenadas para CLM (UTM 30N).")
 
 # ===================== BOTÓN FINAL QUE REDIRIGE =====================
 st.markdown("---")
 
 # Detectamos si tenemos datos (ya sea por selección manual o por coordenadas)
-datos_listos = (x and y and poligono and parcela) or st.session_state.get("found_x")
+datos_listos = (x and y and poligono and parcela)
 
 if datos_listos:
-    # Si vinieron por coordenadas, usamos esos datos
-    if st.session_state.get("found_x"):
-        x = st.session_state.found_x
-        y = st.session_state.found_y
-        poligono = st.session_state.found_poligono
-        parcela = st.session_state.found_parcela
-        municipio_final = st.session_state.found_municipio
-
     col1, col2, col3 = st.columns([1,1,1])
     with col2:
         if comunidad == "Región de Murcia":
@@ -223,5 +217,6 @@ if datos_listos:
                 })
                 st.session_state._redirect = "jccm"
                 st.rerun()
-
+else:
+    st.info("Introduce coordenadas válidas o selecciona una parcela para generar el informe.")
 
