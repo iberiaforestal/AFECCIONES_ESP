@@ -178,9 +178,6 @@ else:
         else:
             st.error("No se encontró ninguna parcela en esas coordenadas")
 
-# ===================== BOTÓN FINAL QUE REDIRIGE (100% GARANTIZADO) =====================
-st.markdown("---")
-
 # ===================== BOTÓN FINAL QUE REDIRIGE =====================
 st.markdown("---")
 
