@@ -161,18 +161,17 @@ else:
         else:
             st.error("No se encontró ninguna parcela en esas coordenadas")
 
-# ===================== BOTÓN FINAL QUE REDIRIGE (VERSIÓN DEFINITIVA) =====================
+# ===================== BOTÓN FINAL QUE REDIRIGE (FUNCIONA SÍ O SÍ) =====================
 st.markdown("---")
 
-# Solo mostramos el botón cuando realmente tenemos parcela localizada
 if x and y and poligono and parcela:
     col1, col2, col3 = st.columns([1, 1, 1])
     with col2:
         if comunidad == "Región de Murcia":
-            if st.button("GENERAR INFORME → Región de Murcia", 
+            if st.button("GENERAR INFORME → Región de Murcia",
                          type="primary", use_container_width=True, key="btn_murcia"):
                 
-                # Guardamos todo EN EL MOMENTO DEL CLIC (así siempre está actualizado)
+                # GUARDAMOS TODO EN SESSION_STATE
                 st.session_state.update({
                     "lanzador_ok": True,
                     "comunidad": comunidad,
@@ -184,11 +183,11 @@ if x and y and poligono and parcela:
                     "y": y
                 })
                 
-                # Forzamos un rerun limpio y luego saltamos
+                # ESTO ES LO QUE FALTABA: FORZAR RE-EJECUCIÓN INMEDIATA
                 st.rerun()
                 
         else:  # Castilla-La Mancha
-            if st.button("GENERAR INFORME → Castilla-La Mancha", 
+            if st.button("GENERAR INFORME → Castilla-La Mancha",
                          type="primary", use_container_width=True, key="btn_jccm"):
                 
                 st.session_state.update({
@@ -201,12 +200,11 @@ if x and y and poligono and parcela:
                     "x": x,
                     "y": y
                 })
-                
                 st.rerun()
 
-# === REDIRECCIÓN REAL: se ejecuta en el segundo rerun (cuando los datos ya están guardados) ===
-if st.session_state.get("lanzador_ok") and st.session_state.get("comunidad"):
-    if st.session_state.comunidad == "Región de Murcia":
+# === AQUÍ SE PRODUCE LA REDIRECCIÓN REAL (en la segunda ejecución) ===
+if st.session_state.get("lanzador_ok"):
+    if st.session_state.get("comunidad") == "Región de Murcia":
         st.switch_page("pages/carm.py")
     else:
         st.switch_page("pages/jccm.py")
