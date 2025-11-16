@@ -78,104 +78,59 @@ else:
     st.switch_page("afecc.py")  # ← nombre de tu lanzador
     st.stop()
 
-# Diccionario con los nombres de municipios y sus nombres base de archivo
-shp_urls = {
-    "ABANILLA": "ABANILLA",
-    "ABARAN": "ABARAN",
-    "AGUILAS": "AGUILAS",
-    "ALBUDEITE": "ALBUDEITE",
-    "ALCANTARILLA": "ALCANTARILLA",
-    "ALEDO": "ALEDO",
-    "ALGUAZAS": "ALGUAZAS",
-    "ALHAMA DE MURCIA": "ALHAMA_DE_MURCIA",
-    "ARCHENA": "ARCHENA",
-    "BENIEL": "BENIEL",
-    "BLANCA": "BLANCA",
-    "BULLAS": "BULLAS",
-    "CALASPARRA": "CALASPARRA",
-    "CAMPOS DEL RIO": "CAMPOS_DEL_RIO",
-    "CARAVACA DE LA CRUZ": "CARAVACA_DE_LA_CRUZ",
-    "CARTAGENA": "CARTAGENA",
-    "CEHEGIN": "CEHEGIN",
-    "CEUTI": "CEUTI",
-    "CIEZA": "CIEZA",
-    "FORTUNA": "FORTUNA",
-    "FUENTE ALAMO DE MURCIA": "FUENTE_ALAMO_DE_MURCIA",
-    "JUMILLA": "JUMILLA",
-    "LAS TORRES DE COTILLAS": "LAS_TORRES_DE_COTILLAS",
-    "LA UNION": "LA_UNION",
-    "LIBRILLA": "LIBRILLA",
-    "LORCA": "LORCA",
-    "LORQUI": "LORQUI",
-    "LOS ALCAZARES": "LOS_ALCAZARES",
-    "MAZARRON": "MAZARRON",
-    "MOLINA DE SEGURA": "MOLINA_DE_SEGURA",
-    "MORATALLA": "MORATALLA",
-    "MULA": "MULA",
-    "MURCIA": "MURCIA",
-    "OJOS": "OJOS",
-    "PLIEGO": "PLIEGO",
-    "PUERTO LUMBRERAS": "PUERTO_LUMBRERAS",
-    "RICOTE": "RICOTE",
-    "SANTOMERA": "SANTOMERA",
-    "SAN JAVIER": "SAN_JAVIER",
-    "SAN PEDRO DEL PINATAR": "SAN_PEDRO_DEL_PINATAR",
-    "TORRE PACHECO": "TORRE_PACHECO",
-    "TOTANA": "TOTANA",
-    "ULEA": "ULEA",
-    "VILLANUEVA DEL RIO SEGURA": "VILLANUEVA_DEL_RIO_SEGURA",
-    "YECLA": "YECLA",
-}
+# ==============================================================
+# CARGAR GEOMETRÍA DE LA PARCELA DESDE EL NUEVO REPO DE CLM
+# ==============================================================
+base_url_clm = "https://raw.githubusercontent.com/iberiaforestal/CATASTRO_JCCM/master/CATASTRO/"
 
-# Función para cargar shapefiles desde GitHub
-@st.cache_data
-def cargar_shapefile_desde_github(base_name):
-    base_url = "https://raw.githubusercontent.com/iberiaforestal/AFECCIONES_CARM/main/CATASTRO/"
+# Ya tenemos todo desde el lanzador → NO hay que buscar nada
+municipio_sel = st.session_state.municipio
+masa_sel = st.session_state.poligono
+parcela_sel = st.session_state.parcela
+x = st.session_state.x
+y = st.session_state.y
+provincia = st.session_state.provincia
+
+# Construimos la ruta: PROVINCIA/MUNICIPIO/PARCELA
+ruta_parcela = f"{provincia.upper()}/{municipio_sel.upper()}/PARCELA"
+
+with tempfile.TemporaryDirectory() as tmpdir:
     exts = [".shp", ".shx", ".dbf", ".prj", ".cpg"]
-    
-    with tempfile.TemporaryDirectory() as tmpdir:
-        local_paths = {}
-        for ext in exts:
-            filename = base_name + ext
-            url = base_url + filename
-            try:
-                response = requests.get(url, timeout=100)
-                response.raise_for_status()
-            except requests.exceptions.RequestException as e:
-                st.error(f"Error al descargar {url}: {str(e)}")
-                return None
-            
-            local_path = os.path.join(tmpdir, filename)
-            with open(local_path, "wb") as f:
-                f.write(response.content)
-            local_paths[ext] = local_path
-        
-        shp_path = local_paths[".shp"]
+    paths = {}
+    cargado = True
+    for ext in exts:
+        url = base_url_clm + ruta_parcela + ext
         try:
-            gdf = gpd.read_file(shp_path)
-            return gdf
-        except Exception as e:
-            st.error(f"Error al leer shapefile {shp_path}: {str(e)}")
-            return None
+            r = requests.get(url, timeout=60)
+            r.raise_for_status()
+            path = os.path.join(tmpdir, "PARCELA" + ext)
+            with open(path, "wb") as f:
+                f.write(r.content)
+            paths[ext] = path
+        except:
+            st.warning(f"No se encontró {ext} → se usará solo el punto central")
+            cargado = False
+            break
 
-# Función para encontrar municipio, polígono y parcela a partir de coordenadas
-def encontrar_municipio_poligono_parcela(x, y):
-    try:
-        punto = Point(x, y)
-        for municipio, archivo_base in shp_urls.items():
-            gdf = cargar_shapefile_desde_github(archivo_base)
-            if gdf is None:
-                continue
-            seleccion = gdf[gdf.contains(punto)]
+    if cargado:
+        try:
+            gdf_parcela = gpd.read_file(paths[".shp"]).to_crs(epsg=25830)
+            seleccion = gdf_parcela[
+                (gdf_parcela["MASA"] == masa_sel) & 
+                (gdf_parcela["PARCELA"] == parcela_sel)
+            ]
             if not seleccion.empty:
-                parcela_gdf = seleccion.iloc[[0]]
-                masa = parcela_gdf["MASA"].iloc[0]
-                parcela = parcela_gdf["PARCELA"].iloc[0]
-                return municipio, masa, parcela, parcela_gdf
-        return "N/A", "N/A", "N/A", None
-    except Exception as e:
-        st.error(f"Error al buscar parcela: {str(e)}")
-        return "N/A", "N/A", "N/A", None
+                query_geom = seleccion.geometry.iloc[0]
+                st.success("Geometría completa de la parcela cargada")
+            else:
+                query_geom = Point(x, y)
+                st.info("Parcela no encontrada en shapefile → se usa punto central")
+        except Exception as e:
+            st.warning(f"Error leyendo shapefile: {e}")
+            query_geom = Point(x, y)
+    else:
+        query_geom = Point(x, y)
+        st.info("Shapefile incompleto → se usa punto central para afecciones")
 
 # Función para transformar coordenadas de ETRS89 a WGS84
 def transformar_coordenadas(x, y):
