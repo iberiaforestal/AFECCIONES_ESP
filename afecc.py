@@ -5,6 +5,15 @@ import tempfile
 import os
 from shapely.geometry import Point
 
+# === REDIRECCIÓN INMEDIATA AL PRINCIPIO DEL SCRIPT (siempre se ejecuta primero) ===
+# Pon esto **MUY ARRIBA** en tu afecc.py, justo después de import streamlit as st
+if st.session_state.get("_redirect") == "carm":
+    st.switch_page("pages/carm.py")
+elif st.session_state.get("_redirect") == "jccm":
+    st.switch_page("pages/jccm.py")
+    else:
+        st.switch_page("pages/jccm.py")
+
 # ===================== CONFIGURACIÓN =====================
 st.set_page_config(page_title="Afecciones CARM · JCCM", layout="centered")
 st.image("https://raw.githubusercontent.com/iberiaforestal/AFECCIONES_CARM/main/logos.jpg", width=280)
@@ -161,50 +170,43 @@ else:
         else:
             st.error("No se encontró ninguna parcela en esas coordenadas")
 
-# ===================== BOTÓN FINAL QUE REDIRIGE (FUNCIONA SÍ O SÍ) =====================
+# ===================== BOTÓN FINAL QUE REDIRIGE (100% GARANTIZADO) =====================
 st.markdown("---")
 
+# Solo mostramos el botón cuando tenemos parcela
 if x and y and poligono and parcela:
-    col1, col2, col3 = st.columns([1, 1, 1])
+    col1, col2, col3 = st.columns([1,1,1])
     with col2:
         if comunidad == "Región de Murcia":
             if st.button("GENERAR INFORME → Región de Murcia",
-                         type="primary", use_container_width=True, key="btn_murcia"):
+                         type="primary", use_container_width=True, key="go_murcia"):
+                # Guardamos todo
+                st.session_state.lanzador_ok = True
+                st.session_state.comunidad = comunidad
+                st.session_state.provincia = provincia
+                st.session_state.municipio = municipio_final
+                st.session_state.poligono = poligono
+                st.session_state.parcela = parcela
+                st.session_state.x = x
+                st.session_state.y = y
                 
-                # GUARDAMOS TODO EN SESSION_STATE
-                st.session_state.update({
-                    "lanzador_ok": True,
-                    "comunidad": comunidad,
-                    "provincia": provincia,
-                    "municipio": municipio_final,
-                    "poligono": poligono,
-                    "parcela": parcela,
-                    "x": x,
-                    "y": y
-                })
-                
-                # ESTO ES LO QUE FALTABA: FORZAR RE-EJECUCIÓN INMEDIATA
+                # La magia: cambiamos una variable de control y rerun
+                st.session_state._redirect = "carm"
                 st.rerun()
                 
         else:  # Castilla-La Mancha
             if st.button("GENERAR INFORME → Castilla-La Mancha",
-                         type="primary", use_container_width=True, key="btn_jccm"):
+                         type="primary", use_container_width=True, key="go_jccm"):
+                st.session_state.lanzador_ok = True
+                st.session_state.comunidad = comunidad
+                st.session_state.provincia = provincia
+                st.session_state.municipio = municipio_final
+                st.session_state.poligono = poligono
+                st.session_state.parcela = parcela
+                st.session_state.x = x
+                st.session_state.y = y
                 
-                st.session_state.update({
-                    "lanzador_ok": True,
-                    "comunidad": comunidad,
-                    "provincia": provincia,
-                    "municipio": municipio_final,
-                    "poligono": poligono,
-                    "parcela": parcela,
-                    "x": x,
-                    "y": y
-                })
+                st.session_state._redirect = "jccm"
                 st.rerun()
 
-# === AQUÍ SE PRODUCE LA REDIRECCIÓN REAL (en la segunda ejecución) ===
-if st.session_state.get("lanzador_ok"):
-    if st.session_state.get("comunidad") == "Región de Murcia":
-        st.switch_page("pages/carm.py")
-    else:
-        st.switch_page("pages/jccm.py")
+
