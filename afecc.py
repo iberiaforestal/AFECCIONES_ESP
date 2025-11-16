@@ -11,8 +11,6 @@ if st.session_state.get("_redirect") == "carm":
     st.switch_page("pages/carm.py")
 elif st.session_state.get("_redirect") == "jccm":
     st.switch_page("pages/jccm.py")
-    else:
-        st.switch_page("pages/jccm.py")
 
 # ===================== CONFIGURACIÓN =====================
 st.set_page_config(page_title="Afecciones CARM · JCCM", layout="centered")
