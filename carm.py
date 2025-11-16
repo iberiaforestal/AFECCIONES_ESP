@@ -28,6 +28,54 @@ adapter = HTTPAdapter(max_retries=retry)
 session.mount('http://', adapter)
 session.mount('https://', adapter)
 
+# ==============================================================
+# DETECCIÓN DEL LANZADOR – AÑADE ESTO AL PRINCIPIO
+# ==============================================================
+if "lanzador_ok" in st.session_state:
+    # VIENE DEL LANZADOR → CARGAMOS LOS DATOS AUTOMÁTICAMENTE
+    municipio_sel = st.session_state.municipio
+    masa_sel      = st.session_state.poligono
+    parcela_sel   = st.session_state.parcela
+    x             = st.session_state.x
+    y             = st.session_state.y
+    
+    # Intentamos cargar la geometría completa de la parcela (mejor para afecciones)
+    base_url = "https://raw.githubusercontent.com/iberiaforestal/AFECCIONES_CARM/main/CATASTRO/"
+    archivo = municipio_sel.upper().replace(" ", "_").replace("Á","A").replace("É","E").replace("Í","I")
+    
+    with tempfile.TemporaryDirectory() as tmpdir:
+        exts = [".shp", ".shx", ".dbf", ".prj", ".cpg"]
+        paths = {}
+        ok = True
+        for ext in exts:
+            try:
+                r = requests.get(f"{base_url}{archivo}{ext}", timeout=30)
+                r.raise_for_status()
+                p = os.path.join(tmpdir, f"{archivo}{ext}")
+                with open(p, "wb") as f:
+                    f.write(r.content)
+                paths[ext] = p
+            except:
+                ok = False
+                break
+        if ok:
+            gdf = gpd.read_file(paths[".shp"]).to_crs(epsg=25830)
+            sel = gdf[(gdf["MASA"] == masa_sel) & (gdf["PARCELA"] == parcela_sel)]
+            if not sel.empty:
+                parcela = sel
+                query_geom_lanzador = sel.geometry.iloc[0]
+            else:
+                parcela = None
+                query_geom_lanzador = Point(x, y)
+        else:
+            parcela = None
+            query_geom_lanzador = Point(x, y)
+else:
+    # NO VIENE DEL LANZADOR → LO MANDAMOS AL PRINCIPIO
+    st.warning("Acceso directo no permitido. Volviendo al selector principal...")
+    st.switch_page("afecc.py")  # ← nombre de tu lanzador
+    st.stop()
+
 # Diccionario con los nombres de municipios y sus nombres base de archivo
 shp_urls = {
     "ABANILLA": "ABANILLA",
@@ -1557,59 +1605,34 @@ def generar_pdf(datos, x, y, filename):
     pdf.output(filename)
     return filename
 
-# Interfaz de Streamlit
-st.image(
-    "https://raw.githubusercontent.com/iberiaforestal/AFECCIONES_CARM/main/logos.jpg",
-    width=250
-)
-st.title("Informe basico de Afecciones al medio")
+# ==============================================================
+# INTERFAZ LIMPIA CUANDO VIENE DEL LANZADOR
+# ==============================================================
+st.image("https://raw.githubusercontent.com/iberiaforestal/AFECCIONES_CARM/main/logos.jpg", width=250)
+st.title("Informe básico de Afecciones – Región de Murcia")
 
-modo = st.radio("Seleccione el modo de búsqueda. Recuerde que la busqueda por parcela analiza afecciones al total de la superficie de la parcela, por el contrario la busqueda por coodenadas analiza las afecciones del punto", ["Por coordenadas", "Por parcela"])
-
-x = 0.0
-y = 0.0
-municipio_sel = ""
-masa_sel = ""
-parcela_sel = ""
-parcela = None
-
-if modo == "Por parcela":
-    municipio_sel = st.selectbox("Municipio", sorted(shp_urls.keys()))
-    archivo_base = shp_urls[municipio_sel]
-    
-    gdf = cargar_shapefile_desde_github(archivo_base)
-    
-    if gdf is not None:
-        masa_sel = st.selectbox("Polígono", sorted(gdf["MASA"].unique()))
-        parcela_sel = st.selectbox("Parcela", sorted(gdf[gdf["MASA"] == masa_sel]["PARCELA"].unique()))
-        parcela = gdf[(gdf["MASA"] == masa_sel) & (gdf["PARCELA"] == parcela_sel)]
-        
-        if parcela.geometry.geom_type.isin(['Polygon', 'MultiPolygon']).all():
-            centroide = parcela.geometry.centroid.iloc[0]
-            x = centroide.x
-            y = centroide.y         
-                    
-            st.success("Parcela cargada correctamente.")
-            st.write(f"Municipio: {municipio_sel}")
-            st.write(f"Polígono: {masa_sel}")
-            st.write(f"Parcela: {parcela_sel}")
-        else:
-            st.error("La geometría seleccionada no es un polígono válido.")
-    else:
-        st.error(f"No se pudo cargar el shapefile para el municipio: {municipio_sel}")
+st.success("Parcela localizada correctamente desde el selector")
+col1, col2 = st.columns(2)
+with col1:
+    st.write(f"**Municipio:** {municipio_sel}")
+    st.write(f"**Polígono:** {masa_sel}")
+with col2:
+    st.write(f"**Parcela:** {parcela_sel}")
+    st.write(f"**X:** {x:,.2f} | **Y:** {y:,.2f}".replace(",", "."))
 
 with st.form("formulario"):
-    if modo == "Por coordenadas":
-        x = st.number_input("Coordenada X (ETRS89)", format="%.2f", help="Introduce coordenadas en metros, sistema ETRS89 / UTM zona 30")
-        y = st.number_input("Coordenada Y (ETRS89)", format="%.2f")
-        if x != 0.0 and y != 0.0:
-            municipio_sel, masa_sel, parcela_sel, parcela = encontrar_municipio_poligono_parcela(x, y)
-            if municipio_sel != "N/A":
-                st.success(f"Parcela encontrada: Municipio: {municipio_sel}, Polígono: {masa_sel}, Parcela: {parcela_sel}")
-            else:
-                st.warning("No se encontró una parcela para las coordenadas proporcionadas.")
-    else:
-        st.info(f"Coordenadas obtenidas del centroide de la parcela: X = {x}, Y = {y}")
+    col1, col2 = st.columns(2)
+    with col1:
+        nombre = st.text_input("Nombre *", placeholder="Obligatorio")
+        apellidos = st.text_input("Apellidos *", placeholder="Obligatorio")
+        dni = st.text_input("DNI / NIE *", placeholder="Obligatorio")
+    with col2:
+        telefono = st.text_input("Teléfono")
+        email = st.text_input("Correo electrónico")
+        direccion = st.text_input("Dirección")
+
+    objeto = st.text_area("Objeto de la solicitud", height=100)
+    submitted = st.form_submit_button("GENERAR INFORME PDF")
         
     nombre = st.text_input("Nombre")
     apellidos = st.text_input("Apellidos")
@@ -1649,10 +1672,9 @@ if submitted:
             st.error("No se pudo generar el informe debido a coordenadas inválidas.")
         else:
             # === 4. DEFINIR query_geom (UNA VEZ) ===
-            if modo == "Por parcela":
-                query_geom = parcela.geometry.iloc[0]
-            else:
-                query_geom = Point(x, y)
+            
+# Cuando viene del lanzador ya tenemos la geometría correcta
+            query_geom = query_geom_lanzador
 
             # === 5. GUARDAR query_geom Y URLs EN SESSION_STATE ===
             st.session_state['query_geom'] = query_geom
