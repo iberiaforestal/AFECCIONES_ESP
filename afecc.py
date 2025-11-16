@@ -161,36 +161,38 @@ else:
         else:
             st.error("No se encontró ninguna parcela en esas coordenadas")
 
-# ===================== BOTÓN FINAL QUE REDIRIGE (FUNCIONA EN TODAS PARTES) =====================
+# ===================== BOTÓN FINAL QUE REDIRIGE (SIEMPRE FUNCIONA) =====================
+st.markdown("---")
+
+# Guardamos los datos en session_state SÓLO si ya están calculados
 if x and y and poligono and parcela:
-    st.markdown("---")
+    # Guardamos aquí para que siempre existan aunque el botón haga rerun
+    st.session_state.update({
+        "lanzador_ok": True,
+        "comunidad": comunidad,
+        "provincia": provincia,
+        "municipio": municipio_final,
+        "poligono": poligono,
+        "parcela": parcela,
+        "x": x,
+        "y": y
+    })
+
     col1, col2, col3 = st.columns([1, 1, 1])
     with col2:
         if comunidad == "Región de Murcia":
-            if st.button("GENERAR INFORME → Región de Murcia", type="primary", use_container_width=True):
-                # ← ¡¡TODO EL GUARDADO AQUÍ DENTRO!!
-                st.session_state.update({
-                    "lanzador_ok": True,
-                    "comunidad": comunidad,
-                    "provincia": provincia,
-                    "municipio": municipio_final,
-                    "poligono": poligono,
-                    "parcela": parcela,
-                    "x": x,
-                    "y": y
-                })
+            if st.button("GENERAR INFORME → Región de Murcia", 
+                         type="primary", use_container_width=True, key="btn_murcia"):
                 st.switch_page("pages/carm.py")
-
+                
         else:  # Castilla-La Mancha
-            if st.button("GENERAR INFORME → Castilla-La Mancha", type="primary", use_container_width=True):
-                st.session_state.update({
-                    "lanzador_ok": True,
-                    "comunidad": comunidad,
-                    "provincia": provincia,
-                    "municipio": municipio_final,
-                    "poligono": poligono,
-                    "parcela": parcela,
-                    "x": x,
-                    "y": y
-                })
+            if st.button("GENERAR INFORME → Castilla-La Mancha", 
+                         type="primary", use_container_width=True, key="btn_jccm"):
                 st.switch_page("pages/jccm.py")
+
+# Si el botón ya fue pulsado en una ejecución anterior, redirigimos directamente
+elif st.session_state.get("lanzador_ok"):
+    if st.session_state.comunidad == "Región de Murcia":
+        st.switch_page("pages/carm.py")
+    else:
+        st.switch_page("pages/jccm.py")
