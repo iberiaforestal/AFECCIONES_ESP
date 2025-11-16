@@ -81,46 +81,52 @@ if modo == "Por polígono y parcela":
         municipio = st.selectbox("Municipio", sorted(municipios_murcia, key=str.lower))
         municipio_final = municipio.upper().replace(" ", "_").replace("Á", "A").replace("É", "E").replace("Í", "I")
 
-    # ------------------- CASTILLA-LA MANCHA -------------------
-    else:
-        with st.spinner(f"Cargando municipios de {provincia}..."):
-            api_url = f"https://api.github.com/repos/iberiaforestal/CATASTRO_JCCM/contents/CATASTRO/{provincia}"
-            try:
-                items = requests.get(api_url, timeout=15).json()
-                municipios = sorted([item["name"] for item in items if item["type"] == "dir"], key=str.lower)
-                if not municipios:
-                    st.error(f"No se encontraron municipios en {provincia}. El directorio está vacío. Verifica el repo GitHub.")
-                    st.stop()
-                municipio = st.selectbox("Municipio", municipios)
-                municipio_final = municipio.upper()
-            except Exception as e:
-                st.error(f"Error al cargar municipios de {provincia}: {str(e)}")
+  # ------------------- CASTILLA-LA MANCHA -------------------
+else:
+    with st.spinner(f"Cargando municipios de {provincia}..."):
+        api_url = f"https://api.github.com/repos/iberiaforestal/CATASTRO_JCCM/contents/CATASTRO/{provincia}"
+        try:
+            response = requests.get(api_url, timeout=15)
+            response.raise_for_status()
+            items = response.json()
+            municipios = sorted([item["name"] for item in items if item["type"] == "dir"], key=str.lower)
+            st.info(f"Encontrados {len(municipios)} municipios en {provincia}")
+            if not municipios:
+                st.error(f"No se encontraron municipios en {provincia}. El directorio está vacío en GitHub. Verifica el repo y sube las carpetas de municipios.")
                 st.stop()
+            municipio = st.selectbox("Municipio", municipios)
+            municipio_final = municipio.upper()
+        except Exception as e:
+            st.error(f"Error al cargar municipios de {provincia}: {str(e)}")
+            st.stop()
 
-    # Cargar parcelario y seleccionar polígono/parcela
-    if municipio:
-        with st.spinner("Cargando parcelario (puede tardar unos segundos)..."):
-            if comunidad == "Región de Murcia":
-                url_shp = f"https://raw.githubusercontent.com/iberiaforestal/AFECCIONES_CARM/main/CATASTRO/{municipio_final}.shp"
-                try:
-                    gdf = gpd.read_file(url_shp).to_crs(epsg=25830)
-                except:
-                    st.error("Error cargando parcelario de Murcia")
-                    st.stop()
-            else:
-                gdf = cargar_parcelario_clm(provincia, municipio_final)
-        if gdf is not None and len(gdf) > 0:
-            poligono = st.selectbox("Polígono", sorted(gdf["MASA"].unique()))
-            parcela = st.selectbox("Parcela", sorted(gdf[gdf["MASA"] == poligono]["PARCELA"].unique()))
-           
-            seleccion = gdf[(gdf["MASA"] == poligono) & (gdf["PARCELA"] == parcela)]
-            if not seleccion.empty:
-                centroide = seleccion.geometry.centroid.iloc[0]
-                x, y = round(centroide.x, 2), round(centroide.y, 2)
-                gdf_parcela = seleccion
-                st.success(f"Parcela seleccionada → X: {x:,} | Y: {y:,}".replace(",", "."))
+# Cargar parcelario y seleccionar polígono/parcela
+if municipio:
+    with st.spinner("Cargando parcelario (puede tardar unos segundos)..."):
+        if comunidad == "Región de Murcia":
+            # Código de Murcia sin cambios (funciona perfecto)
+            url_shp = f"https://raw.githubusercontent.com/iberiaforestal/AFECCIONES_CARM/main/CATASTRO/{municipio_final}.shp"
+            try:
+                gdf = gpd.read_file(url_shp).to_crs(epsg=25830)
+            except:
+                st.error("Error cargando parcelario de Murcia")
+                st.stop()
         else:
-            st.error("No se pudo cargar el parcelario. Verifica que el shapefile PARCELA.shp exista en el repo.")
+            gdf = cargar_parcelario_clm(provincia, municipio_final)  # Tu función mejorada con logs
+    if gdf is not None and len(gdf) > 0:
+        poligono = st.selectbox("Polígono", sorted(gdf["MASA"].unique()))
+        parcela = st.selectbox("Parcela", sorted(gdf[gdf["MASA"] == poligono]["PARCELA"].unique()))
+       
+        seleccion = gdf[(gdf["MASA"] == poligono) & (gdf["PARCELA"] == parcela)]
+        if not seleccion.empty:
+            centroide = seleccion.geometry.centroid.iloc[0]
+            x, y = round(centroide.x, 2), round(centroide.y, 2)
+            gdf_parcela = seleccion
+            st.success(f"Parcela seleccionada → X: {x:,} | Y: {y:,}".replace(",", "."))
+        else:
+            st.error("No se pudo seleccionar la parcela. Verifica los datos.")
+    else:
+        st.error("No se pudo cargar el parcelario. Verifica que PARCELA.shp esté subido en el repo GitHub para este municipio.")
 
 # ===================== BÚSQUEDA POR COORDENADAS =====================
 else:
